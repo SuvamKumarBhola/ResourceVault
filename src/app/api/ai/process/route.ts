@@ -1,60 +1,95 @@
 import { NextRequest, NextResponse } from "next/server";
-import { GoogleGenAI, Type } from "@google/genai";
+import { pipeline, env } from "@xenova/transformers";
+import nlp from "compromise";
 
-const ai = process.env.GEMINI_API_KEY ? new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY }) : null;
+// Ensure transformers doesn't try to use the browser cache or wasm in Node environment
+// when running on the server.
+env.allowLocalModels = false; 
+
+// Keep pipelines in memory to avoid reloading models on every request
+class PipelineSingleton {
+  static summarizer: any = null;
+  static classifier: any = null;
+
+  static async getSummarizer() {
+    if (this.summarizer === null) {
+      console.log("Loading summarization model (Xenova/distilbart-cnn-6-6)...");
+      this.summarizer = await pipeline("summarization", "Xenova/distilbart-cnn-6-6");
+    }
+    return this.summarizer;
+  }
+
+  static async getClassifier() {
+    if (this.classifier === null) {
+      console.log("Loading classification model (Xenova/mobilebert-uncased-mnli)...");
+      this.classifier = await pipeline("zero-shot-classification", "Xenova/mobilebert-uncased-mnli");
+    }
+    return this.classifier;
+  }
+}
+
+const CATEGORIES = [
+  "AI", "Frontend", "Backend", "DevOps", 
+  "Machine Learning", "Research", "Career", 
+  "Interview", "Open Source"
+];
 
 export async function POST(req: NextRequest) {
   try {
-    if (!ai) {
-      return NextResponse.json({ 
-        summary: "No API key configured. Add GEMINI_API_KEY to .env.local to enable AI features.", 
-        tags: ["offline"], 
+    const { content } = await req.json();
+
+    if (!content || content.trim().length < 10) {
+       return NextResponse.json({ 
+        summary: "Not enough content to analyze.", 
+        tags: ["general"], 
         category: "Uncategorized" 
       });
     }
 
-    const { content, type } = await req.json();
+    const summarizer = await PipelineSingleton.getSummarizer();
+    const classifier = await PipelineSingleton.getClassifier();
 
-    const prompt = `
-      You are an intelligent knowledge organization assistant. 
-      Analyze the following content from a ${type}.
-      Provide a concise 2-sentence summary.
-      Extract 3-5 relevant technical tags (lowercase).
-      Predict a category from this list: [AI, Frontend, Backend, DevOps, Machine Learning, Research, Career, Interview, Open Source, Other].
-      
-      Content:
-      ${content}
-    `;
-
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
-      contents: prompt,
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            summary: { type: Type.STRING },
-            tags: { type: Type.ARRAY, items: { type: Type.STRING } },
-            category: { type: Type.STRING }
-          },
-          required: ["summary", "tags", "category"]
-        }
-      }
+    // 1. Summarization
+    const truncatedContent = content.substring(0, 3000); 
+    const summaryResult = await summarizer(truncatedContent, {
+      max_new_tokens: 100,
+      min_new_tokens: 20,
     });
+    
+    let summary = summaryResult[0]?.summary_text || "Could not generate summary.";
+    summary = summary.trim();
 
-    if (!response.text) {
-      throw new Error("Empty response from Gemini");
+    // 2. Classification
+    const classResult = await classifier(summary || truncatedContent.substring(0, 500), CATEGORIES);
+    
+    let category = "Other";
+    if (classResult.labels && classResult.scores && classResult.scores[0] > 0.2) {
+       category = classResult.labels[0]; // Highest scoring label
     }
 
-    const result = JSON.parse(response.text);
-    return NextResponse.json(result);
+    // 3. Tagging using Compromise
+    const doc = nlp(content.substring(0, 2000));
+    const nouns = (doc.nouns().out('array') as string[]) || [];
+    let extractedTags = Array.from(new Set(nouns.map(n => n.toLowerCase().trim()))).slice(0, 5);    
+    // Filter out very common/short words or numbers
+    extractedTags = extractedTags.filter((t: string) => t.length > 2 && !/^\d+$/.test(t));
+    if (extractedTags.length === 0) {
+      extractedTags = ["general"];
+    }
+
+    return NextResponse.json({
+      summary,
+      tags: extractedTags,
+      category
+    });
+
   } catch (error: any) {
-    console.error("AI Processing Error:", error);
+    console.error("Local AI Processing Error:", error);
     return NextResponse.json({ 
-      summary: "AI processing failed.", 
+      summary: "Local AI processing failed.", 
       tags: ["error"], 
-      category: "Uncategorized" 
+      category: "Uncategorized",
+      error: error.message
     }, { status: 500 });
   }
 }
