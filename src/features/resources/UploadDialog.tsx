@@ -34,11 +34,13 @@ export function UploadDialog() {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button className="rounded-radius-buttons-pill px-6 bg-graphite text-chalk hover:bg-graphite/90">
-          <Plus className="w-4 h-4 mr-2" />
-          Add Resource
-        </Button>
+      <DialogTrigger
+        render={
+          <Button className="rounded-radius-buttons-pill px-6 bg-graphite text-chalk hover:bg-graphite/90" />
+        }
+      >
+        <Plus className="w-4 h-4 mr-2" />
+        Add Resource
       </DialogTrigger>
       <DialogContent className="sm:max-w-[425px] rounded-radius-modals">
         <DialogHeader>
