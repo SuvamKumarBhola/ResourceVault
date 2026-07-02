@@ -11,6 +11,7 @@ export interface Resource {
   category?: string;
   collectionId?: string;
   notes?: string;
+  isFavorite?: boolean;
   createdAt: number;
   updatedAt: number;
 }

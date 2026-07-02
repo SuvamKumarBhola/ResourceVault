@@ -6,7 +6,7 @@ import { db } from "@/database/db";
 import { useResourceStore } from "@/store/useResourceStore";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ExternalLink, Bot, MoreVertical, FolderPlus, Trash2 } from "lucide-react";
+import { ExternalLink, Bot, MoreVertical, FolderPlus, Trash2, Heart } from "lucide-react";
 import { motion } from "framer-motion";
 import { ResourceDetailSheet } from "./ResourceDetailSheet";
 import { Resource } from "@/types";
@@ -22,8 +22,12 @@ export function ResourceList() {
   const resources = useLiveQuery(async () => {
     const all = await db.resources.orderBy('createdAt').reverse().toArray();
     return all.filter(r => {
-      // Filter by collection
-      if (activeCollectionId && r.collectionId !== activeCollectionId) return false;
+      // Filter by collection or favorites
+      if (activeCollectionId === 'favorites') {
+        if (!r.isFavorite) return false;
+      } else if (activeCollectionId && r.collectionId !== activeCollectionId) {
+        return false;
+      }
 
       // Filter by search query
       if (!searchQuery) return true;
@@ -47,109 +51,136 @@ export function ResourceList() {
     await db.resources.update(resourceId, { collectionId, updatedAt: Date.now() });
   };
 
-  const handleDelete = async (resourceId: string) => {
-    if (confirm("Are you sure you want to delete this resource?")) {
-      await db.resources.delete(resourceId);
+  const handleToggleFavorite = async (resource: Resource) => {
+    await db.resources.update(resource.id, { isFavorite: !resource.isFavorite, updatedAt: Date.now() });
+    if (selectedResource?.id === resource.id) {
+      setSelectedResource({ ...resource, isFavorite: !resource.isFavorite });
     }
   };
 
-  if (resources.length === 0) {
-    return (
-      <div className="text-center py-20">
-        <p className="text-slate text-lg">No resources found.</p>
-      </div>
-    );
-  }
+  const handleDelete = async (resourceId: string) => {
+    if (confirm("Are you sure you want to delete this resource?")) {
+      await db.resources.delete(resourceId);
+      setIsSheetOpen(false);
+    }
+  };
 
   return (
     <>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {resources.map((resource, index) => (
-          <motion.div
-            key={resource.id}
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3, delay: index * 0.05 }}
-          >
-            <Card 
-              className="h-full flex flex-col rounded-radius-cards shadow-md hover:shadow-lg transition-all border-border bg-card cursor-pointer group"
-              onClick={() => handleCardClick(resource)}
+      {/* Dashboard Stats */}
+      {!searchQuery && activeCollectionId === null && (
+        <div className="flex items-center gap-4 mb-6">
+          <div className="bg-muted/30 p-4 rounded-radius-cards flex-1 flex flex-col justify-center border border-border/50">
+            <span className="text-3xl font-heading font-bold text-ink">{resources.length}</span>
+            <span className="text-xs text-slate uppercase tracking-wider font-semibold">Total Resources</span>
+          </div>
+          <div className="bg-muted/30 p-4 rounded-radius-cards flex-1 flex flex-col justify-center border border-border/50">
+            <span className="text-3xl font-heading font-bold text-ink">{collections.length}</span>
+            <span className="text-xs text-slate uppercase tracking-wider font-semibold">Collections</span>
+          </div>
+        </div>
+      )}
+
+      {resources.length === 0 ? (
+        <div className="text-center py-20">
+          <p className="text-slate text-lg">No resources found.</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {resources.map((resource, index) => (
+            <motion.div
+              key={resource.id}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3, delay: index * 0.05 }}
             >
-              <CardHeader className="pb-2 flex-none">
-                <div className="flex justify-between items-start mb-2">
-                  <div className="flex gap-2">
-                    <Badge variant="outline" className="rounded-radius-badges bg-vellum text-ink capitalize">
-                      {resource.type}
-                    </Badge>
-                    {resource.category && resource.category !== "Uncategorized" && (
-                       <Badge variant="secondary" className="rounded-radius-badges bg-buttercup text-ochre">
-                         {resource.category}
-                       </Badge>
-                    )}
-                  </div>
-                  
-                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity" onClick={e => e.stopPropagation()}>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger className="p-1 rounded-md hover:bg-muted text-muted-foreground">
-                        <MoreVertical className="w-4 h-4" />
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="w-48">
-                        <DropdownMenuSub>
-                          <DropdownMenuSubTrigger>
-                            <FolderPlus className="w-4 h-4 mr-2" />
-                            <span>Add to Collection</span>
-                          </DropdownMenuSubTrigger>
-                          <DropdownMenuPortal>
-                            <DropdownMenuSubContent>
-                              <DropdownMenuItem onClick={() => handleAssignCollection(resource.id, undefined)}>
-                                (Remove from Collection)
-                              </DropdownMenuItem>
-                              {collections.map(c => (
-                                <DropdownMenuItem key={c.id} onClick={() => handleAssignCollection(resource.id, c.id)}>
-                                  {c.name}
+              <Card 
+                className="h-full flex flex-col rounded-radius-cards shadow-md hover:shadow-lg transition-all border-border bg-card cursor-pointer group"
+                onClick={() => handleCardClick(resource)}
+              >
+                <CardHeader className="pb-2 flex-none">
+                  <div className="flex justify-between items-start mb-2">
+                    <div className="flex gap-2">
+                      <Badge variant="outline" className="rounded-radius-badges bg-vellum text-ink capitalize">
+                        {resource.type}
+                      </Badge>
+                      {resource.category && resource.category !== "Uncategorized" && (
+                         <Badge variant="secondary" className="rounded-radius-badges bg-buttercup text-ochre">
+                           {resource.category}
+                         </Badge>
+                      )}
+                    </div>
+                    
+                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity" onClick={e => e.stopPropagation()}>
+                      <button 
+                        onClick={(e) => { e.stopPropagation(); handleToggleFavorite(resource); }}
+                        className={`p-1 rounded-md hover:bg-muted transition-colors ${resource.isFavorite ? 'text-rose-500' : 'text-muted-foreground'}`}
+                      >
+                        <Heart className="w-4 h-4" fill={resource.isFavorite ? "currentColor" : "none"} />
+                      </button>
+                      
+                      <DropdownMenu>
+                        <DropdownMenuTrigger className="p-1 rounded-md hover:bg-muted text-muted-foreground">
+                          <MoreVertical className="w-4 h-4" />
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-48">
+                          <DropdownMenuSub>
+                            <DropdownMenuSubTrigger>
+                              <FolderPlus className="w-4 h-4 mr-2" />
+                              <span>Add to Collection</span>
+                            </DropdownMenuSubTrigger>
+                            <DropdownMenuPortal>
+                              <DropdownMenuSubContent>
+                                <DropdownMenuItem onClick={() => handleAssignCollection(resource.id, undefined)}>
+                                  (Remove from Collection)
                                 </DropdownMenuItem>
-                              ))}
-                            </DropdownMenuSubContent>
-                          </DropdownMenuPortal>
-                        </DropdownMenuSub>
-                        <DropdownMenuItem onClick={() => handleDelete(resource.id)} className="text-destructive focus:bg-destructive/10 focus:text-destructive">
-                          <Trash2 className="w-4 h-4 mr-2" />
-                          <span>Delete</span>
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                                {collections.map(c => (
+                                  <DropdownMenuItem key={c.id} onClick={() => handleAssignCollection(resource.id, c.id)}>
+                                    {c.name}
+                                  </DropdownMenuItem>
+                                ))}
+                              </DropdownMenuSubContent>
+                            </DropdownMenuPortal>
+                          </DropdownMenuSub>
+                          <DropdownMenuItem onClick={() => handleDelete(resource.id)} className="text-destructive focus:bg-destructive/10 focus:text-destructive">
+                            <Trash2 className="w-4 h-4 mr-2" />
+                            <span>Delete</span>
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
                   </div>
-                </div>
-                <CardTitle className="font-heading text-heading-sm line-clamp-2 leading-tight">
-                  {resource.title}
-                </CardTitle>
-                {resource.url && (
-                  <CardDescription className="line-clamp-1 text-xs text-ash mt-1">
-                    {resource.url}
-                  </CardDescription>
+                  <CardTitle className="font-heading text-heading-sm line-clamp-2 leading-tight">
+                    {resource.title}
+                  </CardTitle>
+                  {resource.url && (
+                    <CardDescription className="line-clamp-1 text-xs text-ash mt-1">
+                      {resource.url}
+                    </CardDescription>
+                  )}
+                </CardHeader>
+                <CardContent className="flex-1 pb-2">
+                  <div className="bg-muted/50 p-3 rounded-md text-sm text-slate flex items-start gap-2 h-full">
+                    <Bot className="w-4 h-4 mt-0.5 text-blueprint shrink-0" />
+                    <p className="line-clamp-4 leading-relaxed">{resource.summary || "No summary available."}</p>
+                  </div>
+                </CardContent>
+                {resource.tags && resource.tags.length > 0 && (
+                  <CardFooter className="pt-2 flex-none">
+                    <div className="flex flex-wrap gap-1.5">
+                      {resource.tags.map(tag => (
+                        <span key={tag} className="text-xs font-mono text-slate bg-border/40 px-2 py-0.5 rounded-full">
+                          #{tag}
+                        </span>
+                      ))}
+                    </div>
+                  </CardFooter>
                 )}
-              </CardHeader>
-              <CardContent className="flex-1 pb-2">
-                <div className="bg-muted/50 p-3 rounded-md text-sm text-slate flex items-start gap-2 h-full">
-                  <Bot className="w-4 h-4 mt-0.5 text-blueprint shrink-0" />
-                  <p className="line-clamp-4 leading-relaxed">{resource.summary || "No summary available."}</p>
-                </div>
-              </CardContent>
-              {resource.tags && resource.tags.length > 0 && (
-                <CardFooter className="pt-2 flex-none">
-                  <div className="flex flex-wrap gap-1.5">
-                    {resource.tags.map(tag => (
-                      <span key={tag} className="text-xs font-mono text-slate bg-border/40 px-2 py-0.5 rounded-full">
-                        #{tag}
-                      </span>
-                    ))}
-                  </div>
-                </CardFooter>
-              )}
-            </Card>
-          </motion.div>
-        ))}
-      </div>
+              </Card>
+            </motion.div>
+          ))}
+        </div>
+      )}
 
       <ResourceDetailSheet 
         resource={selectedResource} 

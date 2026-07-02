@@ -3,6 +3,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import "./globals.css";
 import { Sidebar } from "@/features/dashboard/Sidebar";
 import { Header } from "@/features/dashboard/Header";
+import { CommandMenu } from "@/components/CommandMenu";
 
 export const metadata: Metadata = {
   title: "ResourceVault AI",
@@ -18,6 +19,7 @@ export default function RootLayout({
     <html lang="en">
       <body className="antialiased">
         <TooltipProvider>
+          <CommandMenu />
           <div className="flex h-screen overflow-hidden bg-background">
             <Sidebar />
             <div className="flex-1 flex flex-col min-w-0">
