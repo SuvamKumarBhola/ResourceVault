@@ -9,6 +9,8 @@ export interface Resource {
   mimeType?: string;
   tags: string[];
   category?: string;
+  collectionId?: string;
+  notes?: string;
   createdAt: number;
   updatedAt: number;
 }

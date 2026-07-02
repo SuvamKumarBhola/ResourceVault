@@ -23,7 +23,13 @@ export async function processResource(fileOrUrl: File | string, titleInput?: str
       if (res.ok) {
         const data = await res.json();
         if (data.title && !titleInput) title = data.title;
-        extractedText = data.text || data.description || "";
+        
+        const parts = [];
+        if (data.title) parts.push(`Title: ${data.title}`);
+        if (data.description) parts.push(`Description: ${data.description}`);
+        if (data.text && data.text.trim().length > 10) parts.push(`Content: ${data.text.trim()}`);
+        
+        extractedText = parts.join('\n\n');
       }
     } else {
       if (fileOrUrl.type.startsWith('image/')) {
