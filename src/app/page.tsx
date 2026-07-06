@@ -1,4 +1,5 @@
 import { ResourceList } from "@/features/resources/ResourceList";
+import { Counter } from "@/components/Counter";
 
 export default function Home() {
   return (
@@ -11,6 +12,7 @@ export default function Home() {
         <p className="text-slate text-heading-sm mt-4 max-w-2xl">
           Everything you save is instantly searchable and available offline.
         </p>
+        <Counter />
       </header>
       
       <section>
