@@ -108,7 +108,6 @@ bun dev
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result. You can start editing the page by modifying `app/page.tsx`.
 
 ---
-
 ## 🗺 Roadmap (Future Features)
 
 - [ ] Chrome Extension & Mobile App
@@ -119,7 +118,6 @@ Open [http://localhost:3000](http://localhost:3000) with your browser to see the
 - [ ] Vector Search & Voice Notes
 
 ---
-
 ## 🤝 Architecture & Code Quality
 
 Use feature-based architecture. Avoid large components. Keep business logic separate from UI. Always optimize for scalability, extensibility, and an exceptional developer experience.
