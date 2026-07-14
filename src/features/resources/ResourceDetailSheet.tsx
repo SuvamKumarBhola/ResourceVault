@@ -21,7 +21,11 @@ export function ResourceDetailSheet({ resource: initialResource, open, onOpenCha
 
   // Keep the resource updated in real-time from the DB
   const resource = useLiveQuery(
-    () => initialResource ? db.resources.get(initialResource.id) : undefined,
+    async () => {
+      if (!initialResource) return null;
+      const res = await db.resources.get(initialResource.id);
+      return res || null;
+    },
     [initialResource?.id]
   ) || initialResource;
 
