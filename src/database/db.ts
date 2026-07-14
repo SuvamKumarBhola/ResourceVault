@@ -11,4 +11,8 @@ db.version(1).stores({
   collections: 'id, name, isCustom, createdAt',
 });
 
+db.version(2).stores({
+  resources: 'id, type, title, category, createdAt, updatedAt, url, hash'
+});
+
 export { db };

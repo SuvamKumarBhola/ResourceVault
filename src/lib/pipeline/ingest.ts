@@ -1,6 +1,12 @@
 import { db } from "@/database/db";
 import { usePipelineStore } from "@/store/usePipelineStore";
 
+async function calculateHash(buffer: ArrayBuffer): Promise<string> {
+  const hashBuffer = await crypto.subtle.digest('SHA-256', buffer);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
 export async function processResource(fileOrUrl: File | string, titleInput?: string) {
   const { setProcessing, updateProgress } = usePipelineStore.getState();
   setProcessing(true, "Detecting resource type...", 10);
@@ -12,8 +18,16 @@ export async function processResource(fileOrUrl: File | string, titleInput?: str
     let extractedText = "";
     let type: 'link' | 'image' | 'pdf' = 'link';
     let urlStr = isUrl ? fileOrUrl : undefined;
+    let fileHash: string | undefined;
+    let fileBuffer: ArrayBuffer | undefined;
 
     if (isUrl) {
+      const existing = await db.resources.where('url').equals(fileOrUrl as string).first();
+      if (existing) {
+        setProcessing(false);
+        throw new Error("This URL already exists in your vault.");
+      }
+
       updateProgress("Extracting webpage content...", 30);
       const res = await fetch('/api/extract/url', {
         method: 'POST',
@@ -32,6 +46,14 @@ export async function processResource(fileOrUrl: File | string, titleInput?: str
         extractedText = parts.join('\n\n');
       }
     } else {
+      fileBuffer = await fileOrUrl.arrayBuffer();
+      fileHash = await calculateHash(fileBuffer);
+      const existing = await db.resources.where('hash').equals(fileHash).first();
+      if (existing) {
+        setProcessing(false);
+        throw new Error("This file already exists in your vault.");
+      }
+
       if (fileOrUrl.type.startsWith('image/')) {
         type = 'image';
         updateProgress("Running local OCR...", 30);
@@ -65,8 +87,8 @@ export async function processResource(fileOrUrl: File | string, titleInput?: str
     updateProgress("Saving to vault...", 90);
     
     let fileData = null;
-    if (!isUrl) {
-      fileData = await fileOrUrl.arrayBuffer();
+    if (!isUrl && fileBuffer) {
+      fileData = fileBuffer;
     }
 
     await db.resources.add({
@@ -79,6 +101,7 @@ export async function processResource(fileOrUrl: File | string, titleInput?: str
       tags,
       category,
       fileData,
+      hash: fileHash,
       mimeType: !isUrl ? fileOrUrl.type : undefined,
       createdAt: Date.now(),
       updatedAt: Date.now(),

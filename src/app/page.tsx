@@ -1,5 +1,6 @@
 import { ResourceList } from "@/features/resources/ResourceList";
 import { Counter } from "@/components/Counter";
+import { ImportBookmarksButton } from "@/features/dashboard/ImportBookmarksButton";
 
 export default function Home() {
   return (
@@ -12,7 +13,10 @@ export default function Home() {
         <p className="text-slate text-heading-sm mt-4 max-w-2xl">
           Everything you save is instantly searchable and available offline.
         </p>
-        <Counter />
+        <div className="mt-6 flex items-center gap-4">
+          <Counter />
+          <ImportBookmarksButton />
+        </div>
       </header>
       
       <section>

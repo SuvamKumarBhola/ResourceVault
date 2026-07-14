@@ -7,6 +7,7 @@ export interface Resource {
   summary?: string;
   fileData?: ArrayBuffer | null;
   mimeType?: string;
+  hash?: string;
   tags: string[];
   category?: string;
   collectionId?: string;
